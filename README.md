@@ -21,6 +21,24 @@ Pure Go. No external dependencies outside of the Go standard library.
 http://godoc.org/github.com/disintegration/gift
 
 
+### PIXEL REGRESSION TESTS
+
+Every filter is covered by a pixel regression suite (`regression_test.go`):
+each filter is applied to fixed input images, the output is encoded as PNG
+and its SHA-256 hash is compared against hashes committed in
+`testdata/regression_hashes.json`. A failing subtest is named
+`<filter>__<input>` and reports both hashes, and the actual output PNG is
+written to the system temp dir for inspection.
+
+Run the suite:
+
+    make regression
+
+Regenerate the committed hashes after an intentional filter change:
+
+    make regression-update
+
+
 ### QUICK START
 
 ```go

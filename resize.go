@@ -1,6 +1,7 @@
 package gift
 
 import (
+	"fmt"
 	"image"
 	"image/draw"
 	"math"
@@ -201,9 +202,23 @@ func resizeNearest(dst draw.Image, src image.Image, w, h int, options *Options) 
 }
 
 type resizeFilter struct {
+	defaultFilterValidator
 	width      int
 	height     int
 	resampling Resampling
+}
+
+// validate additionally rejects a nil resampling, which would otherwise
+// panic on the first Support() call during Draw.
+func (p *resizeFilter) validate(src, dst imageInfo) error {
+	if err := p.defaultFilterValidator.validate(src, dst); err != nil {
+		return err
+	}
+	if isNilInterface(p.resampling) {
+		return &FilterError{FilterIndex: -1, FilterName: "*gift.resizeFilter",
+			Op: "validate resampling", Err: fmt.Errorf("%w: Resize requires a non-nil resampling", ErrInvalidFilter)}
+	}
+	return nil
 }
 
 func (p *resizeFilter) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
@@ -276,7 +291,6 @@ func (p *resizeFilter) Draw(dst draw.Image, src image.Image, options *Options) {
 //	)
 //	dst := image.NewRGBA(g.Bounds(src.Bounds()))
 //	g.Draw(dst, src)
-//
 func Resize(width, height int, resampling Resampling) Filter {
 	return &resizeFilter{
 		width:      width,
@@ -286,9 +300,22 @@ func Resize(width, height int, resampling Resampling) Filter {
 }
 
 type resizeToFitFilter struct {
+	defaultFilterValidator
 	width      int
 	height     int
 	resampling Resampling
+}
+
+// validate rejects a nil resampling.
+func (p *resizeToFitFilter) validate(src, dst imageInfo) error {
+	if err := p.defaultFilterValidator.validate(src, dst); err != nil {
+		return err
+	}
+	if isNilInterface(p.resampling) {
+		return &FilterError{FilterIndex: -1, FilterName: "*gift.resizeToFitFilter",
+			Op: "validate resampling", Err: fmt.Errorf("%w: ResizeToFit requires a non-nil resampling", ErrInvalidFilter)}
+	}
+	return nil
 }
 
 func (p *resizeToFitFilter) Bounds(srcBounds image.Rectangle) image.Rectangle {
@@ -334,10 +361,23 @@ func ResizeToFit(width, height int, resampling Resampling) Filter {
 }
 
 type resizeToFillFilter struct {
+	defaultFilterValidator
 	width      int
 	height     int
 	anchor     Anchor
 	resampling Resampling
+}
+
+// validate rejects a nil resampling.
+func (p *resizeToFillFilter) validate(src, dst imageInfo) error {
+	if err := p.defaultFilterValidator.validate(src, dst); err != nil {
+		return err
+	}
+	if isNilInterface(p.resampling) {
+		return &FilterError{FilterIndex: -1, FilterName: "*gift.resizeToFillFilter",
+			Op: "validate resampling", Err: fmt.Errorf("%w: ResizeToFill requires a non-nil resampling", ErrInvalidFilter)}
+	}
+	return nil
 }
 
 func (p *resizeToFillFilter) Bounds(srcBounds image.Rectangle) image.Rectangle {

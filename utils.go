@@ -214,7 +214,9 @@ func copyimage(dst draw.Image, src image.Image, options *Options) {
 	})
 }
 
-type copyimageFilter struct{}
+type copyimageFilter struct {
+	defaultFilterValidator
+}
 
 func (p *copyimageFilter) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
 	dstBounds = image.Rect(0, 0, srcBounds.Dx(), srcBounds.Dy())

@@ -14,6 +14,7 @@ const (
 )
 
 type rankFilter struct {
+	defaultFilterValidator
 	ksize int
 	disk  bool
 	mode  rankMode

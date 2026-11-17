@@ -15,7 +15,6 @@ Basic usage:
 
 	// 3. Use the Draw func to apply the filters to src and store the result in dst.
 	g.Draw(dst, src)
-
 */
 package gift
 
@@ -81,13 +80,11 @@ func (g *GIFT) Empty() {
 //
 // Example:
 //
-// 	src := image.NewRGBA(image.Rect(0, 0, 100, 200))
+//	src := image.NewRGBA(image.Rect(0, 0, 100, 200))
 //	g := gift.New(gift.Rotate90())
 //
-// 	// calculate image bounds after applying rotation and create a new image of that size.
-// 	dst := image.NewRGBA(g.Bounds(src.Bounds())) // dst bounds: (0, 0, 200, 100)
-//
-//
+//	// calculate image bounds after applying rotation and create a new image of that size.
+//	dst := image.NewRGBA(g.Bounds(src.Bounds())) // dst bounds: (0, 0, 200, 100)
 func (g *GIFT) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
 	b := srcBounds
 	for _, f := range g.Filters {
@@ -98,7 +95,13 @@ func (g *GIFT) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
 }
 
 // Draw applies all the added filters to the src image and outputs the result to the dst image.
+//
+// Draw panics with a *FilterError (see Check) when the chain cannot run, for
+// example on nil images or a nil filter. Use DrawChecked to receive the error
+// as a return value instead.
 func (g *GIFT) Draw(dst draw.Image, src image.Image) {
+	g.mustBeValid(dst, src)
+
 	if len(g.Filters) == 0 {
 		copyimage(dst, src, &g.Options)
 		return
@@ -136,7 +139,12 @@ const (
 
 // DrawAt applies all the added filters to the src image and outputs the result to the dst image
 // at the specified position pt using the specified composition operator op.
+//
+// As with Draw, invalid inputs cause a *FilterError panic; use DrawAtChecked
+// to handle the error explicitly.
 func (g *GIFT) DrawAt(dst draw.Image, src image.Image, pt image.Point, op Operator) {
+	g.mustBeValid(dst, src)
+
 	switch op {
 	case OverOperator:
 		tb := g.Bounds(src.Bounds())

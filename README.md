@@ -85,6 +85,71 @@ gift.New().DrawAt(dstImage, fgImage, image.Pt(100, 100), gift.OverOperator)
 ```
 
 
+### IMAGE TYPES AND VALIDATION
+
+#### Supported image types
+
+Every filter accepts the standard library image types. Each type has explicit
+color and alpha semantics, which are documented in the package doc comments
+and summarized here:
+
+| Type | Channels | Bit depth | Alpha |
+| --- | --- | --- | --- |
+| `*image.NRGBA` | RGB | 8-bit | straight (non-premultiplied) |
+| `*image.NRGBA64` | RGB | 16-bit | straight (non-premultiplied) |
+| `*image.RGBA` | RGB | 8-bit | premultiplied |
+| `*image.RGBA64` | RGB | 16-bit | premultiplied |
+| `*image.Gray` | gray | 8-bit | none (always opaque) |
+| `*image.Gray16` | gray | 16-bit | none (always opaque) |
+| `*image.YCbCr` | YCbCr | 8-bit | none (source images only, not drawable) |
+| `*image.Paletted` | indexed | 8-bit | carried by the palette |
+| any other `image.Image` | RGB | read at 16-bit precision via `color.Color` | defined by the image |
+
+All pixels are normalized internally to straight-alpha RGBA `float32` values in
+the range `[0, 1]`:
+
+- premultiplied `RGBA`/`RGBA64` input is un-premultiplied before processing and
+  re-premultiplied when written back to such a destination;
+- `Gray`/`Gray16` input is replicated onto RGB and treated as fully opaque;
+- intermediate results between two filters are stored as 16-bit straight-alpha
+  `*image.NRGBA64`, so a 16-bit source keeps its full bit depth across the
+  whole chain while an 8-bit source retains its 8-bit effective precision;
+- writing to a `Gray`/`Gray16` destination applies the
+  `0.299*r + 0.587*g + 0.114*b` luminance formula.
+
+#### Validating a filter chain
+
+Passing a nil image, a nil filter or a nil resampling used to fail deep inside
+the processing code with an unreadable nil-pointer panic. The chain can now be
+validated before any pixel is touched:
+
+```go
+// Check inspects types only; it allocates no images and reads no pixels.
+if err := g.Check(src, dst); err != nil {
+    // err is a *gift.FilterError wrapping one of the sentinel errors:
+    // gift.ErrNilImage, gift.ErrNilFilter, gift.ErrUnsupportedType,
+    // gift.ErrInvalidFilter. The error message names the failing filter
+    // index and the concrete types involved.
+    log.Fatal(err)
+}
+g.Draw(dst, src)
+```
+
+`DrawChecked` and `DrawAtChecked` combine the check with execution and return
+the error instead of panicking:
+
+```go
+if err := g.DrawChecked(dst, src); err != nil {
+    log.Fatal(err)
+}
+```
+
+The original `Draw`/`DrawAt` methods keep their existing behavior and pixel
+output; on invalid input they now panic with the same readable
+`*FilterError` instead of a bare nil-pointer panic. Custom filters can
+participate in validation by implementing an unexported `validate` method
+(see the `filterValidator` interface in the package sources).
+
 ### SUPPORTED FILTERS
 
 + Transformations

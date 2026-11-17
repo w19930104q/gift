@@ -70,6 +70,7 @@ func prepareConvolutionWeights(kernel []float32, normalize bool) (int, []uvweigh
 }
 
 type convolutionFilter struct {
+	defaultFilterValidator
 	kernel    []float32
 	normalize bool
 	alpha     bool
@@ -205,7 +206,6 @@ func (p *convolutionFilter) Draw(dst draw.Image, src image.Image, options *Optio
 //	)
 //	dst := image.NewRGBA(g.Bounds(src.Bounds()))
 //	g.Draw(dst, src)
-//
 func Convolution(kernel []float32, normalize, alpha, abs bool, delta float32) Filter {
 	return &convolutionFilter{
 		kernel:    kernel,
@@ -326,6 +326,7 @@ func gaussianBlurKernel(x, sigma float32) float32 {
 }
 
 type gausssianBlurFilter struct {
+	defaultFilterValidator
 	sigma float32
 }
 
@@ -384,7 +385,6 @@ func (p *gausssianBlurFilter) Draw(dst draw.Image, src image.Image, options *Opt
 //	)
 //	dst := image.NewRGBA(g.Bounds(src.Bounds()))
 //	g.Draw(dst, src)
-//
 func GaussianBlur(sigma float32) Filter {
 	return &gausssianBlurFilter{
 		sigma: sigma,
@@ -392,6 +392,7 @@ func GaussianBlur(sigma float32) Filter {
 }
 
 type unsharpMaskFilter struct {
+	defaultFilterValidator
 	sigma     float32
 	amount    float32
 	threshold float32
@@ -460,7 +461,6 @@ func (p *unsharpMaskFilter) Draw(dst draw.Image, src image.Image, options *Optio
 //	)
 //	dst := image.NewRGBA(g.Bounds(src.Bounds()))
 //	g.Draw(dst, src)
-//
 func UnsharpMask(sigma, amount, threshold float32) Filter {
 	return &unsharpMaskFilter{
 		sigma:     sigma,
@@ -470,6 +470,7 @@ func UnsharpMask(sigma, amount, threshold float32) Filter {
 }
 
 type meanFilter struct {
+	defaultFilterValidator
 	ksize int
 	disk  bool
 }
@@ -525,6 +526,7 @@ func Mean(ksize int, disk bool) Filter {
 }
 
 type hvConvolutionFilter struct {
+	defaultFilterValidator
 	hkernel, vkernel []float32
 }
 

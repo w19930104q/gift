@@ -1,6 +1,7 @@
 package gift
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -19,6 +20,7 @@ const (
 )
 
 type transformFilter struct {
+	defaultFilterValidator
 	tt transformType
 }
 
@@ -173,9 +175,23 @@ func calcRotatedSize(w, h int, angle float32) (int, int) {
 }
 
 type rotateFilter struct {
+	defaultFilterValidator
 	angle         float32
 	bgcolor       color.Color
 	interpolation Interpolation
+}
+
+// validate additionally rejects a nil background color, whose RGBA() call
+// would otherwise panic the first time an uncovered pixel is written.
+func (p *rotateFilter) validate(src, dst imageInfo) error {
+	if err := p.defaultFilterValidator.validate(src, dst); err != nil {
+		return err
+	}
+	if isNilInterface(p.bgcolor) {
+		return &FilterError{FilterIndex: -1, FilterName: "*gift.rotateFilter",
+			Op: "validate background color", Err: fmt.Errorf("%w: Rotate requires a non-nil background color", ErrInvalidFilter)}
+	}
+	return nil
 }
 
 func (p *rotateFilter) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
@@ -358,7 +374,6 @@ func interpolateNearest(xf, yf float32, bounds image.Rectangle, pixGetter *pixel
 //	)
 //	dst := image.NewRGBA(g.Bounds(src.Bounds()))
 //	g.Draw(dst, src)
-//
 func Rotate(angle float32, backgroundColor color.Color, interpolation Interpolation) Filter {
 	return &rotateFilter{
 		angle:         angle,
@@ -368,6 +383,7 @@ func Rotate(angle float32, backgroundColor color.Color, interpolation Interpolat
 }
 
 type cropFilter struct {
+	defaultFilterValidator
 	rect image.Rectangle
 }
 
@@ -406,7 +422,6 @@ func (p *cropFilter) Draw(dst draw.Image, src image.Image, options *Options) {
 //	)
 //	dst := image.NewRGBA(g.Bounds(src.Bounds()))
 //	g.Draw(dst, src)
-//
 func Crop(rect image.Rectangle) Filter {
 	return &cropFilter{
 		rect: rect,
@@ -464,6 +479,7 @@ func anchorPt(b image.Rectangle, w, h int, anchor Anchor) image.Point {
 }
 
 type cropToSizeFilter struct {
+	defaultFilterValidator
 	w, h   int
 	anchor Anchor
 }

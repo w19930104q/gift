@@ -6,6 +6,7 @@ import (
 )
 
 type pixelateFilter struct {
+	defaultFilterValidator
 	size int
 }
 

@@ -85,6 +85,17 @@ gift.New().DrawAt(dstImage, fgImage, image.Pt(100, 100), gift.OverOperator)
 ```
 
 
+### FILTER CHAIN SEMANTICS
+
+A filter chain provides the following guarantees:
+
+- **Execution order** — filters are applied strictly in list order: the output of filter *i* is the input of filter *i+1*. Filters are never reordered, merged or skipped. Filters do not commute in general, so reordering the list changes the result.
+- **Region bounds** — every intermediate result is stored in a freshly allocated temporary image whose bounds are exactly the bounds of the corresponding filter output. Chain stages never share or reuse pixel buffers, and the src image is never modified. Each filter reads only pixels inside its input bounds and writes only pixels inside its output bounds.
+- **Reproducibility** — applying the same filter list to the same src image always produces exactly the same dst pixels. Enabling or disabling parallelization (`SetParallelization`) affects performance only, never the resulting pixels.
+
+These guarantees are verified by the fixed chain matrix in `chain_test.go`.
+
+
 ### SUPPORTED FILTERS
 
 + Transformations

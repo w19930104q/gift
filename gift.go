@@ -16,6 +16,26 @@ Basic usage:
 	// 3. Use the Draw func to apply the filters to src and store the result in dst.
 	g.Draw(dst, src)
 
+Filter chain semantics
+
+A GIFT filter chain provides the following guarantees:
+
+  - Execution order: filters are applied strictly in list order. The output of
+    filter i is the input of filter i+1. Filters are never reordered, merged
+    or skipped, so reordering the list may change the result (filters do not
+    commute in general) and always does so observably.
+  - Region bounds: every intermediate result is stored in a freshly allocated
+    temporary image whose bounds are exactly the Bounds of the corresponding
+    filter output. Chain stages never share or reuse pixel buffers, and the
+    src image is never modified. Each filter reads only pixels inside its
+    input bounds and writes only pixels inside its output bounds.
+  - Reproducibility: applying the same filter list to the same src image
+    always produces exactly the same dst pixels. In particular, enabling or
+    disabling parallelization (see SetParallelization) never changes the
+    resulting pixels.
+
+These guarantees are verified by the fixed chain matrix in chain_test.go.
+
 */
 package gift
 
@@ -34,6 +54,9 @@ type Filter interface {
 
 // Options is the parameters passed to image processing filters.
 type Options struct {
+	// Parallelization enables parallel processing of image rows.
+	// It affects performance only: the resulting pixels are exactly
+	// the same whether parallelization is enabled or not.
 	Parallelization bool
 }
 
@@ -56,7 +79,8 @@ func New(filters ...Filter) *GIFT {
 }
 
 // SetParallelization enables or disables the image processing parallelization.
-// Parallelization is enabled by default.
+// Parallelization is enabled by default. The setting affects performance only;
+// the resulting pixels are identical either way.
 func (g *GIFT) SetParallelization(isEnabled bool) {
 	g.Options.Parallelization = isEnabled
 }
@@ -98,6 +122,14 @@ func (g *GIFT) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
 }
 
 // Draw applies all the added filters to the src image and outputs the result to the dst image.
+//
+// The filters are applied strictly in list order: the first added filter reads
+// from src, each subsequent filter reads the output of the previous one, and
+// the last filter writes to dst. Intermediate results are stored in freshly
+// allocated temporary images, so src is never modified and no pixel buffer is
+// shared between chain stages. The result is deterministic and identical
+// regardless of the parallelization setting. See the package documentation
+// for the full list of filter chain guarantees.
 func (g *GIFT) Draw(dst draw.Image, src image.Image) {
 	if len(g.Filters) == 0 {
 		copyimage(dst, src, &g.Options)

@@ -130,6 +130,42 @@ gift.New().DrawAt(dstImage, fgImage, image.Pt(100, 100), gift.OverOperator)
     - Threshold(percentage float32)
     - UnsharpMask(sigma, amount, threshold float32)
 
++ Compositing
+
+    - Blend(img image.Image, mode BlendMode)
+
+    The Blend filter composites the img image (the top layer) over the input image
+    using the specified blend mode. The top-left corner (Min point) of img is aligned
+    with the top-left corner of the destination image. Both images are interpreted as
+    straight (non-premultiplied) alpha images; the colors of fully transparent pixels
+    never bleed into visible pixels.
+
+    Supported blend modes:
+
+    - Normal
+    - Multiply
+    - Screen
+    - Overlay
+    - Darken
+    - Lighten
+    - ColorDodge
+    - ColorBurn
+    - HardLight
+    - SoftLight
+    - Difference
+    - Exclusion
+    - Add
+    - Subtract
+
+    Example:
+
+    ```go
+    // Blend layer over src using the Multiply blend mode.
+    g := gift.New(gift.Blend(layer, gift.Multiply))
+    dst := image.NewRGBA(g.Bounds(src.Bounds()))
+    g.Draw(dst, src)
+    ```
+
 
 ### FILTER EXAMPLES
 

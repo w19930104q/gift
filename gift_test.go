@@ -490,6 +490,7 @@ func TestDraw(t *testing.T) {
 		{Sigmoid(0.5, 5)},
 		{Sobel()},
 		{UnsharpMask(1, 1.5, 0.001)},
+		{Blend(image.NewNRGBA(image.Rect(0, 0, 1, 1)), Multiply)},
 	}
 
 	for i, f := range filters {

@@ -130,6 +130,21 @@ gift.New().DrawAt(dstImage, fgImage, image.Pt(100, 100), gift.OverOperator)
     - Threshold(percentage float32)
     - UnsharpMask(sigma, amount, threshold float32)
 
++ RGB/YCbCr color range conversion
+
+    - RGBToYCbCrFilter(rng Range) Filter
+    - YCbCrToRGBFilter(rng Range) Filter
+    - RGBToYCbCr(r, g, b uint8, rng Range) (y, cb, cr uint8)
+    - YCbCrToRGB(y, cb, cr uint8, rng Range) (r, g, b uint8)
+    - DrawRGBToYCbCr(dst *image.YCbCr, src image.Image, rng Range, options *Options)
+    - FullRange / VideoRange
+
+`FullRange` is the JFIF coding (Y/Cb/Cr in 0..255) and is byte-identical to
+the standard library `image/color` conversions. `VideoRange` is the limited
+ITU-R BT.601 coding (Y in 16..235, Cb/Cr in 16..240). The coding range is
+carried explicitly by the filter, so full-range and video-range stages can
+never be mixed silently inside a filter chain. All outputs are rounded to the
+nearest integer and clamped to their legal code range.
 
 ### FILTER EXAMPLES
 

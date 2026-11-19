@@ -279,8 +279,16 @@ func (p *pixelGetter) getPixel(x, y int) pixel {
 }
 
 func (p *pixelGetter) getPixelRow(y int, buf *[]pixel) {
+	p.getPixelRowRange(y, p.bounds.Min.X, p.bounds.Max.X, buf)
+}
+
+// getPixelRowRange appends pixels of the row y for the x range [xmin, xmax)
+// into the reused buffer buf. It uses the same per-pixel access path as
+// getPixelRow and does not introduce any extra copy: callers can reuse one
+// buffer across calls by keeping its capacity while the length is reset to 0.
+func (p *pixelGetter) getPixelRowRange(y, xmin, xmax int, buf *[]pixel) {
 	*buf = (*buf)[:0]
-	for x := p.bounds.Min.X; x != p.bounds.Max.X; x++ {
+	for x := xmin; x != xmax; x++ {
 		*buf = append(*buf, p.getPixel(x, y))
 	}
 }

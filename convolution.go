@@ -77,6 +77,12 @@ type convolutionFilter struct {
 	delta     float32
 }
 
+// convolutionBlockWidth is the maximum number of source columns held in the
+// temporary row buffers at once. The convolution scratch memory per worker is
+// bounded by ksize rows of (convolutionBlockWidth + ksize - 1) pixels instead
+// of growing with the image width.
+const convolutionBlockWidth = 256
+
 func (p *convolutionFilter) Bounds(srcBounds image.Rectangle) (dstBounds image.Rectangle) {
 	dstBounds = image.Rect(0, 0, srcBounds.Dx(), srcBounds.Dy())
 	return
@@ -106,77 +112,103 @@ func (p *convolutionFilter) Draw(dst draw.Image, src image.Image, options *Optio
 	pixSetter := newPixelSetter(dst)
 
 	parallelize(options.Parallelization, srcb.Min.Y, srcb.Max.Y, func(start, stop int) {
-		// Init temporary rows.
-		starty := start
+		// Allocate the rotating temporary rows once per worker and reuse them
+		// across all column blocks. The row width never exceeds
+		// convolutionBlockWidth + ksize - 1, so the scratch memory is bounded
+		// by the block cap instead of growing with the image width.
 		rows := make([][]pixel, ksize)
-		for i := 0; i < ksize; i++ {
-			rowy := starty + i - kcenter
-			if rowy < srcb.Min.Y {
-				rowy = srcb.Min.Y
-			} else if rowy > srcb.Max.Y-1 {
-				rowy = srcb.Max.Y - 1
+
+		for blockStart := srcb.Min.X; blockStart < srcb.Max.X; blockStart += convolutionBlockWidth {
+			blockStop := blockStart + convolutionBlockWidth
+			if blockStop > srcb.Max.X {
+				blockStop = srcb.Max.X
 			}
-			row := make([]pixel, srcb.Dx())
-			pixGetter.getPixelRow(rowy, &row)
-			rows[i] = row
-		}
+			// The block also stores the kcenter clamped columns read on either
+			// side when sampling kernel offsets near the block edges.
+			rowMin := blockStart - kcenter
+			if rowMin < srcb.Min.X {
+				rowMin = srcb.Min.X
+			}
+			rowMax := blockStop + kcenter
+			if rowMax > srcb.Max.X {
+				rowMax = srcb.Max.X
+			}
+			rowWidth := rowMax - rowMin
 
-		for y := start; y < stop; y++ {
-			// Calculate dst row.
-			for x := srcb.Min.X; x < srcb.Max.X; x++ {
-				var r, g, b, a float32
-				for _, w := range weights {
-					wx := x + w.u
-					if wx < srcb.Min.X {
-						wx = srcb.Min.X
-					} else if wx > srcb.Max.X-1 {
-						wx = srcb.Max.X - 1
-					}
-					rowsx := wx - srcb.Min.X
-					rowsy := kcenter + w.v
-
-					px := rows[rowsy][rowsx]
-					r += px.r * w.weight
-					g += px.g * w.weight
-					b += px.b * w.weight
-					if p.alpha {
-						a += px.a * w.weight
-					}
+			// Init temporary rows for this block.
+			for i := 0; i < ksize; i++ {
+				rowy := start + i - kcenter
+				if rowy < srcb.Min.Y {
+					rowy = srcb.Min.Y
+				} else if rowy > srcb.Max.Y-1 {
+					rowy = srcb.Max.Y - 1
 				}
-				if p.abs {
-					r = absf32(r)
-					g = absf32(g)
-					b = absf32(b)
-					if p.alpha {
-						a = absf32(a)
-					}
+				if cap(rows[i]) < rowWidth {
+					rows[i] = make([]pixel, 0, rowWidth)
+				} else {
+					rows[i] = rows[i][:0]
 				}
-				if p.delta != 0 {
-					r += p.delta
-					g += p.delta
-					b += p.delta
-					if p.alpha {
-						a += p.delta
-					}
-				}
-				if !p.alpha {
-					a = rows[kcenter][x-srcb.Min.X].a
-				}
-				pixSetter.setPixel(dstb.Min.X+x-srcb.Min.X, dstb.Min.Y+y-srcb.Min.Y, pixel{r, g, b, a})
+				pixGetter.getPixelRowRange(rowy, rowMin, rowMax, &rows[i])
 			}
 
-			// Rotate temporary rows.
-			if y < stop-1 {
-				tmprow := rows[0]
-				for i := 0; i < ksize-1; i++ {
-					rows[i] = rows[i+1]
+			for y := start; y < stop; y++ {
+				// Calculate dst row.
+				for x := blockStart; x < blockStop; x++ {
+					var r, g, b, a float32
+					for _, w := range weights {
+						wx := x + w.u
+						if wx < srcb.Min.X {
+							wx = srcb.Min.X
+						} else if wx > srcb.Max.X-1 {
+							wx = srcb.Max.X - 1
+						}
+						rowsx := wx - rowMin
+						rowsy := kcenter + w.v
+
+						px := rows[rowsy][rowsx]
+						r += px.r * w.weight
+						g += px.g * w.weight
+						b += px.b * w.weight
+						if p.alpha {
+							a += px.a * w.weight
+						}
+					}
+					if p.abs {
+						r = absf32(r)
+						g = absf32(g)
+						b = absf32(b)
+						if p.alpha {
+							a = absf32(a)
+						}
+					}
+					if p.delta != 0 {
+						r += p.delta
+						g += p.delta
+						b += p.delta
+						if p.alpha {
+							a += p.delta
+						}
+					}
+					if !p.alpha {
+						a = rows[kcenter][x-rowMin].a
+					}
+					pixSetter.setPixel(dstb.Min.X+x-srcb.Min.X, dstb.Min.Y+y-srcb.Min.Y, pixel{r, g, b, a})
 				}
-				nextrowy := y + ksize/2 + 1
-				if nextrowy > srcb.Max.Y-1 {
-					nextrowy = srcb.Max.Y - 1
+
+				// Rotate temporary rows.
+				if y < stop-1 {
+					tmprow := rows[0]
+					for i := 0; i < ksize-1; i++ {
+						rows[i] = rows[i+1]
+					}
+					nextrowy := y + kcenter + 1
+					if nextrowy > srcb.Max.Y-1 {
+						nextrowy = srcb.Max.Y - 1
+					}
+					tmprow = tmprow[:0]
+					pixGetter.getPixelRowRange(nextrowy, rowMin, rowMax, &tmprow)
+					rows[ksize-1] = tmprow
 				}
-				pixGetter.getPixelRow(nextrowy, &tmprow)
-				rows[ksize-1] = tmprow
 			}
 		}
 	})
